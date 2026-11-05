@@ -28,6 +28,13 @@ PAGE = """<!doctype html>
   th {{ font-weight: 600; background: #ecebe5; }}
   a {{ color: #1a1a1a; }}
   .tag {{ background: #e8f5c8; padding: 1px 6px; white-space: nowrap; }}
+  .tone {{ display: inline-block; min-width: 1.6em; text-align: center; padding: 1px 6px; font-weight: 600; border: 1px solid #1a1a1a; }}
+  .tone-1 {{ background: #f4c7c3; }}
+  .tone-2 {{ background: #fbd9b5; }}
+  .tone-3 {{ background: #fff2b3; }}
+  .tone-4 {{ background: #c8e6c9; }}
+  .tone-5 {{ background: #bbdefb; }}
+  .tone-none {{ background: #ecebe5; color: #6b6b6b; border-color: #c4c2ba; }}
 </style></head>
 <body><main>
 <h1>Desk Research: разговоры об AI</h1>
@@ -48,12 +55,19 @@ PAGE = """<!doctype html>
 </div>
 
 <table>
-<tr><th>Когда</th><th>Источник</th><th>Компания</th><th>О чем</th></tr>
+<tr><th>Когда</th><th>Источник</th><th>Компания</th><th>Тон</th><th>О чем</th></tr>
 {rows}
 </table>
 </main></body></html>"""
 
-ROW = '<tr><td>{date}</td><td>{source}</td><td>{entity}</td><td><a href="{url}" target="_blank">{summary}</a></td></tr>'
+ROW = '<tr><td>{date}</td><td>{source}</td><td>{entity}</td><td>{tone}</td><td><a href="{url}" target="_blank">{summary}</a></td></tr>'
+
+
+def tone_badge(tone):
+    """Coloured badge with the tone 1..5; grey dash when the finding has no tone (made before v2)."""
+    if isinstance(tone, int) and not isinstance(tone, bool) and 1 <= tone <= 5:
+        return f'<span class="tone tone-{tone}">{tone}</span>'
+    return '<span class="tone tone-none">—</span>'
 
 
 def render(conn):
@@ -65,7 +79,7 @@ def render(conn):
     ).fetchone()
     last_run = f"{last[1]:%d.%m %H:%M} UTC, {last[0]}" if last else "еще не было"
     rows = conn.execute(
-        """SELECT m.published_at, s.name, f.entity, f.summary, m.url
+        """SELECT m.published_at, s.name, f.entity, f.tone, f.summary, m.url
            FROM findings f
            JOIN materials m ON m.id = f.material_id
            JOIN sources s ON s.id = m.source_id
@@ -79,12 +93,13 @@ def render(conn):
                 entity=f'<span class="tag">{html.escape(entity)}</span>'
                 if entity
                 else "",
+                tone=tone_badge(tone),
                 summary=html.escape(summary),
                 url=html.escape(url, quote=True),
             )
-            for published, source, entity, summary, url in rows
+            for published, source, entity, tone, summary, url in rows
         )
-        or '<tr><td colspan="4">Находок пока нет</td></tr>'
+        or '<tr><td colspan="5">Находок пока нет</td></tr>'
     )
     return PAGE.format(
         sources=sources,

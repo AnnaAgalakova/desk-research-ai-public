@@ -12,7 +12,7 @@ import db
 
 SERVICE = "worker"
 MODEL = os.environ.get("MODEL", "anthropic/claude-haiku-5.5")
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v2"
 POLL_SECONDS = 10
 RETRY_SECONDS = 3600
 
@@ -39,7 +39,20 @@ PROMPT = """Ты помогаешь вести desk research по рынку р�
 Ответь строго JSON без пояснений:
 {{"about_ai": true или false — материал про искусственный интеллект,
   "entity": одна компания из списка {entities}, о которой материал, или null,
-  "summary": "о чем материал, одна короткая фраза по-русски"}}"""
+  "summary": "о чем материал, одна короткая фраза по-русски",
+  "tone": целое число от 1 до 5 — отношение материала к ИИ в целом:
+          1 критика или страх, 3 нейтрально, 5 оптимистично}}"""
+
+
+def parse_tone(value):
+    """Tone must be an integer 1..5; anything else (including bool, floats, text) becomes None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str) and value.isdigit():
+        value = int(value)
+    if isinstance(value, int) and 1 <= value <= 5:
+        return value
+    return None
 
 
 def ask_model(title, text):
@@ -91,9 +104,16 @@ def process_new(conn):
         if answer.get("about_ai"):
             entity = answer.get("entity") if answer.get("entity") in ENTITIES else None
             conn.execute(
-                """INSERT INTO findings (material_id, entity, summary, model, prompt_version)
-                   VALUES (%s, %s, %s, %s, %s) ON CONFLICT (material_id) DO NOTHING""",
-                (material_id, entity, answer["summary"], MODEL, PROMPT_VERSION),
+                """INSERT INTO findings (material_id, entity, summary, tone, model, prompt_version)
+                   VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (material_id) DO NOTHING""",
+                (
+                    material_id,
+                    entity,
+                    answer["summary"],
+                    parse_tone(answer.get("tone")),
+                    MODEL,
+                    PROMPT_VERSION,
+                ),
             )
             conn.execute(
                 "UPDATE materials SET status = 'done' WHERE id = %s", (material_id,)

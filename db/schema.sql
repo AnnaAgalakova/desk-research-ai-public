@@ -48,6 +48,10 @@ CREATE TABLE IF NOT EXISTS findings (
 -- the bot marks a finding when it has been sent to subscribers
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ;
 
+-- tone of the material about AI: 1 critical .. 3 neutral .. 5 optimistic; NULL for findings made before v2
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS tone INTEGER
+    CHECK (tone BETWEEN 1 AND 5);
+
 CREATE TABLE IF NOT EXISTS subscribers (
     chat_id     BIGINT PRIMARY KEY,
     name        TEXT,

@@ -79,10 +79,19 @@ def say(chat_id, text, button=True):
     api("sendMessage", payload)
 
 
+TONE_EMOJI = {1: "🔴", 2: "🟠", 3: "🟡", 4: "🟢", 5: "🔵"}
+
+
+def tone_emoji(tone):
+    """Emoji for tone 1..5; empty for findings without a tone (made before v2)."""
+    return TONE_EMOJI.get(tone, "")
+
+
 def finding_lines(rows):
     lines = []
-    for summary, entity, url, source in rows:
-        line = f'• <a href="{html.escape(url)}">{html.escape(summary)}</a>\n  {html.escape(source)}'
+    for summary, entity, url, source, tone in rows:
+        mark = f"{tone_emoji(tone)} " if tone_emoji(tone) else ""
+        line = f'• {mark}<a href="{html.escape(url)}">{html.escape(summary)}</a>\n  {html.escape(source)}'
         if entity:
             line += f" · {html.escape(entity)}"
         lines.append(line)
@@ -137,7 +146,7 @@ def send_new(conn):
         (ids,),
     ).fetchall()
     latest = conn.execute(
-        "SELECT f.summary, f.entity, m.url, s.name FROM findings f"
+        "SELECT f.summary, f.entity, m.url, s.name, f.tone FROM findings f"
         " JOIN materials m ON m.id = f.material_id JOIN sources s ON s.id = m.source_id"
         " WHERE f.id = ANY(%s) ORDER BY f.id DESC LIMIT %s",
         (ids, LATEST),
@@ -198,7 +207,7 @@ def handle(conn, message):
             (chat["id"], name),
         )
         latest = conn.execute(
-            "SELECT f.summary, f.entity, m.url, s.name FROM findings f"
+            "SELECT f.summary, f.entity, m.url, s.name, f.tone FROM findings f"
             " JOIN materials m ON m.id = f.material_id JOIN sources s ON s.id = m.source_id ORDER BY f.id DESC LIMIT 5"
         ).fetchall()
         text = "Готово, вы подписаны. После каждого сбора пришлю сюда одну сводку: сколько новых находок и по каким компаниям."
